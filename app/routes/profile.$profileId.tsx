@@ -1,7 +1,8 @@
-
-import type { ActionArgs, LoaderArgs} from "@remix-run/node";
+import { ActionArgs, LoaderArgs, Response} from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { Outlet, useLoaderData } from "@remix-run/react";
+import { getUserIfSignedIn } from "~/server/auth.server";
+import { getProfilePageHeaderData } from "~/server/db.server";
 
 export async function action({params, request}:ActionArgs) {
   
@@ -10,23 +11,22 @@ export async function action({params, request}:ActionArgs) {
 }
 
 export async function loader({params, request}:LoaderArgs) {
-  
-  const profileHeader = {
-    bannerImage: "https://images.unsplash.com/photo-1557243962-0a093922933f?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=1170&q=80",
-    avatar: "https://images.unsplash.com/photo-1581833971358-2c8b550f87b3?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=871&q=80",
-    displayName: "Kanvas",
+  const userRecord = await getUserIfSignedIn(request);
+  const pageHeaderData = await getProfilePageHeaderData(params.profileId);
+  if(!pageHeaderData){
+    throw new Response("no profile found", {status:404})
   }
 
-  return json({profileHeader});
+  return json({pageHeaderData});
 }
 
 
 
 export default function FormSections() {
-  const { profileHeader} = useLoaderData<typeof loader>();
+  const {pageHeaderData } = useLoaderData<typeof loader>();
   return (
     <div className="min-h-screen bg-[#2a9bb5] flex flex-col ">
-      <ProfileHeader data={profileHeader} />
+      <ProfileHeader data={pageHeaderData} />
       <div className="mx-auto rounded-lg">
         <Outlet />
 
@@ -35,9 +35,8 @@ export default function FormSections() {
        
       </div>
     </div>
-  )
+  );
 }
-
 
 export interface ProfileHeaderProps {
   data:{
@@ -47,7 +46,7 @@ export interface ProfileHeaderProps {
   }
 }
 
-export function ProfileHeader(props: ProfileHeaderProps) {
+function ProfileHeader(props: ProfileHeaderProps) {
   const { bannerImage, avatar, displayName } = props.data;
 
   return (

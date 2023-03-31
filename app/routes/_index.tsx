@@ -9,6 +9,7 @@ import {
 } from '@heroicons/react/20/solid'
 import { BoltIcon, CalendarDaysIcon, UsersIcon } from '@heroicons/react/24/outline'
 
+
 const primaryFeatures = [
   {
     name: 'Server monitoring',
