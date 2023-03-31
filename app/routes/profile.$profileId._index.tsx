@@ -29,7 +29,7 @@ export async function action({ params, request }: ActionArgs) {
     if (!newIntent) {
       return json({ error: "error on create intent" });
     }
-    return json({ newIntentId: newIntent.intentId });
+    return redirect(`intent/${newIntent.intentId}`);
   }
 
 }

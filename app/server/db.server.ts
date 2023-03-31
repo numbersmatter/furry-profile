@@ -1,5 +1,8 @@
-import type { QueryDocumentSnapshot } from "firebase-admin/firestore";
-import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import type {
+  QueryDocumentSnapshot,
+  Timestamp,
+} from "firebase-admin/firestore";
+import { FieldValue } from "firebase-admin/firestore";
 import { getFirestore } from "firebase-admin/firestore";
 
 // helper function to convert firestore data to typescript
@@ -48,13 +51,76 @@ export const versionUrl = "testCollection/version6";
 export const surveyDb = {
   survey: () => dataPoint<SurveyDoc>(`${versionUrl}/survey`),
   intents: (profileId: string) =>
-    dataPoint(`${dbBase}/profiles/${profileId}/intents`),
+    dataPoint<IntentDoc>(`${dbBase}/profiles/${profileId}/intents`),
   profile: () => dataPoint<Profile>(`${versionUrl}/profile`),
   assets: (profileId: string) =>
     dataPoint(`${versionUrl}/profile/${profileId}/profile_assets`),
   openings: (profileId: string) =>
     dataPoint<OpeningDoc>(`${dbBase}/profiles/${profileId}/openings`),
+  sectionResponse: (profileId: string, intentId: string) =>
+    dataPoint(
+      `${dbBase}/profiles/${profileId}/intents/${intentId}/sectionResponse`
+    ),
 };
+
+export const getSectionResponse = async (
+  profileId: string,
+  intentId: string,
+  sectionId: string
+) => {
+  const sectionResponseRef = surveyDb
+    .sectionResponse(profileId, intentId)
+    .doc(sectionId);
+
+  const sectionSnap = await sectionResponseRef.get();
+  return sectionSnap.data();
+};
+
+export const writeSectionResponse = async (
+  profileId: string,
+  intentId: string,
+  sectionId: string,
+  data: any
+) => {
+  const sectionResponseRef = surveyDb
+    .sectionResponse(profileId, intentId)
+    .doc(sectionId);
+
+  const writeData = await sectionResponseRef.set(data);
+  await setSectionComplete(profileId, intentId, sectionId);
+  return writeData;
+};
+
+const setSectionComplete = async (
+  profileId: string,
+  intentId: string,
+  sectionId: string
+) => {
+  const intentDocRef = surveyDb.intents(profileId).doc(intentId);
+
+  const idSection = `sectionStatus.${sectionId}`;
+
+  const updateData = {
+    updatedAt: FieldValue.serverTimestamp(),
+    [idSection]: true,
+  };
+
+  const writeData = intentDocRef.update(updateData);
+  return writeData;
+};
+
+export interface IntentDoc {
+  intentStatus: "in-progress" | "submitted";
+  createdAt: Timestamp;
+  submittedAt?: Timestamp;
+  updatedAt: Timestamp;
+  profileId: string;
+  openingId: string;
+  formId: string;
+  sectionOrder: string[];
+  sectionStatus: { [key: string]: boolean };
+}
+
 export interface OpeningDoc {
   formId: string;
   formName: string;
@@ -66,10 +132,7 @@ export interface OpeningDoc {
   sectionOrder: string[];
   sections: {
     sectionId: string;
-    fieldOrder: string[];
-    fieldObj: {
-      [key: string]: Field;
-    };
+    fields: Field[];
     name: string;
     text: string;
   }[];
@@ -110,17 +173,52 @@ export const getProfilePageHeaderData = async (
   return profileData;
 };
 
-export const createNewIntent =async (profileId: string, openingId:string) => {
+export const getIntentDoc = async (
+  profileId: string | undefined,
+  intentId: string | undefined
+) => {
+  if (profileId === undefined) {
+    return undefined;
+  }
+  if (intentId === undefined) {
+    return undefined;
+  }
+  const intentDocRef = surveyDb.intents(profileId).doc(intentId);
+  const intentDocSnap = await intentDocRef.get();
+  const intentDocData = intentDocSnap.data();
+  if (!intentDocData) {
+    return undefined;
+  }
+
+  return { ...intentDocData, intentId };
+};
+
+export const getOpeningDoc = async (profileId: string, openingId: string) => {
   const openDocRef = surveyDb.openings(profileId).doc(openingId);
   const newIntentRef = surveyDb.intents(profileId).doc();
   const openDocSnap = await openDocRef.get();
   const openDocData = openDocSnap.data();
-  
-  if(!openDocData){
+
+  if (!openDocData) {
+    return undefined;
+  }
+  return { ...openDocData, openingId };
+};
+
+export const createNewIntent = async (profileId: string, openingId: string) => {
+  const openDocRef = surveyDb.openings(profileId).doc(openingId);
+  const newIntentRef = surveyDb.intents(profileId).doc();
+  const openDocSnap = await openDocRef.get();
+  const openDocData = openDocSnap.data();
+
+  if (!openDocData) {
     return undefined;
   }
 
-  const sectionStatus = openDocData.sectionOrder.reduce((arr, current)=>({...arr, [current]: false}), {})
+  const sectionStatus = openDocData.sectionOrder.reduce(
+    (arr, current) => ({ ...arr, [current]: false }),
+    {}
+  );
 
   const newIntentData = {
     openingId,
@@ -131,12 +229,9 @@ export const createNewIntent =async (profileId: string, openingId:string) => {
     sectionOrder: openDocData.sectionOrder,
     createdAt: FieldValue.serverTimestamp(),
     updatedAt: FieldValue.serverTimestamp(),
-
-  }
-
+  };
+  // @ts-ignore
   const writeNewIntent = await newIntentRef.set(newIntentData);
 
-  return { ...writeNewIntent, intentId: newIntentRef.id}
-  
-
-}
+  return { ...writeNewIntent, intentId: newIntentRef.id };
+};
