@@ -1,15 +1,37 @@
 import type { ActionArgs, LoaderArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { Form, Link, useLoaderData } from "@remix-run/react";
-import { getOpenForms, surveyDb } from "~/server/db.server";
-import { Disclosure } from '@headlessui/react'
-import { MinusSmallIcon, PlusSmallIcon } from '@heroicons/react/24/outline'
-
+import { Form, Link, useActionData, useLoaderData } from "@remix-run/react";
+import { createNewIntent, getOpenForms, surveyDb } from "~/server/db.server";
+import { Disclosure } from '@headlessui/react';
+import { MinusSmallIcon, PlusSmallIcon } from '@heroicons/react/24/outline';
+import * as z from "zod"
 
 export async function action({ params, request }: ActionArgs) {
+  let formData = await request.formData();
+  let { _action, ...values } = Object.fromEntries(formData);
 
+  const IntentCreateSchema = z.object({
+    profileId: z.string(),
+    openId: z.string()
+  })
 
-  return json({status:"hello"});
+  const checkSchema = IntentCreateSchema.safeParse(values);
+
+  const profileId = params.profileId ?? "no-profile"
+  const openId = values.openId ?? "no-openID"
+
+  if (!checkSchema.success) {
+    console.log("error on check checkSchema")
+    return json({ status: "error" })
+
+  } else {
+    const newIntent = await createNewIntent(profileId, checkSchema.data.openId);
+    if (!newIntent) {
+      return json({ error: "error on create intent" });
+    }
+    return json({ newIntentId: newIntent.intentId });
+  }
+
 }
 
 export async function loader({ params, request }: LoaderArgs) {
@@ -34,10 +56,16 @@ export async function loader({ params, request }: LoaderArgs) {
 
 
 
-export default function FormSections() {
+export default function ProfileHomepage() {
   const { homepageDisplay, openforms } = useLoaderData<typeof loader>();
+  const actionData = useActionData();
   return (
     <div className="space-y-4">
+      {
+        actionData
+          ? <p>{JSON.stringify(actionData)} </p>
+          : <p></p>
+      }
       <ProfileHero heroText={homepageDisplay.heroText} heroImage={homepageDisplay.heroImage} />
 
       <div id="open-forms" className="relative">
@@ -45,19 +73,30 @@ export default function FormSections() {
         <div className="mx-auto max-w-7xl py-5  grid grid-cols-1 gap-y-4 ">
           {
             openforms.length > 0 ? <>
-              <h2 className="mx-auto text-4xl py-3 text-white">Open Forms</h2>
               {
                 openforms.map((openform) => {
-                  return <Form key={openform.openId}  >
-                    <input hidden readOnly value={openform.openId} />
-
-                   <CommisionCard
-                    key={openform.openId}
-                    name={"Sign up to hear from us."}
-                    text={"Get notified of updates and recieve cool tips from artist for artist."}
-                    linkUrl={""}
+                  return <Form replace method="post" key={openform.openId}  >
+                    <input
+                      name="openId" 
+                      hidden 
+                      readOnly 
+                      value={openform.openId} 
                     />
-                    </Form>
+                    <input 
+                      name="profileId" 
+                      hidden 
+                      readOnly 
+                      value={openform.profileId} 
+                    />
+
+                    <CommisionCard
+                      buttonText="Sign-up"
+                      key={openform.openId}
+                      name={openform.formName}
+                      text={openform.formText}
+                      linkUrl={""}
+                    />
+                  </Form>
 
                 }
                 )
@@ -168,7 +207,7 @@ function ProfileHero(props: IProfileHero) {
         </div>
         <div className="relative  lg:col-span-5 lg:-mr-8 xl:absolute xl:inset-0 xl:left-1/2 xl:mr-0">
           <img
-            className="rounded-xl aspect-[3/2] w-full bg-gray-50 object-cover lg:absolute lg:inset-0 lg:aspect-auto lg:h-full"
+            className="rounded-xl aspect-[3/2] w-full bg-transparent object-cover lg:absolute lg:inset-0 lg:aspect-auto lg:h-full"
             src={heroImage}
             alt="" />
         </div>
@@ -178,11 +217,11 @@ function ProfileHero(props: IProfileHero) {
 }
 
 
-function CommisionCard(props: { name: string, text: string, linkUrl: string }) {
-  const { name, text, linkUrl } = props;
+function CommisionCard(props: { name: string, text: string, linkUrl: string, buttonText?: string }) {
+  const { name, text, linkUrl, buttonText } = props;
 
   return (
-    <div className="max-w-2xl mx-auto rounded-lg shadow-lg overflow-hidden lg:max-w-none lg:flex">
+    <div className="max-w-2xl mx-auto rounded-lg shadow-lg overflow-hidden  lg:flex">
       <div className="flex-1 bg-white px-6 py-8 lg:p-12">
         <h3 className="text-2xl font-extrabold text-green-700 sm:text-3xl"> {name}</h3>
         <p className="mt-6 text-base text-gray-500">
@@ -206,7 +245,7 @@ function CommisionCard(props: { name: string, text: string, linkUrl: string }) {
               type="submit"
               className="flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-gray-900"
             >
-              Start Form
+              {buttonText ?? "Start Form"}
             </button>
           </div>
         </div>

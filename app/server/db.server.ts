@@ -23,39 +23,42 @@ export interface Profile {
   displayName: string;
 }
 export type FieldTypes =
-| "select"
-| "date"
-| "currency"
-| "longText"
-| "email"
-| "shortText"
-| "imageUpload";
+  | "select"
+  | "date"
+  | "currency"
+  | "longText"
+  | "email"
+  | "shortText"
+  | "imageUpload";
 
 export type Field = {
-type: FieldTypes;
-label: string;
-fieldId: string;
-options?: { value: string; label: string }[];
-// schema? : {
-//   optional: boolean,
-//   minLength:number,
-//   maxLenght: number,
-//  }
+  type: FieldTypes;
+  label: string;
+  fieldId: string;
+  options?: { value: string; label: string }[];
+  // schema? : {
+  //   optional: boolean,
+  //   minLength:number,
+  //   maxLenght: number,
+  //  }
 };
-
 
 export const versionUrl = "testCollection/version6";
 
 export const surveyDb = {
   survey: () => dataPoint<SurveyDoc>(`${versionUrl}/survey`),
+  intents: (profileId: string) =>
+    dataPoint(`${dbBase}/profiles/${profileId}/intents`),
   profile: () => dataPoint<Profile>(`${versionUrl}/profile`),
-  assets: (profileId:string) => dataPoint(`${versionUrl}/profile/${profileId}/profile_assets`),
+  assets: (profileId: string) =>
+    dataPoint(`${versionUrl}/profile/${profileId}/profile_assets`),
   openings: (profileId: string) =>
-  dataPoint<OpeningDoc>(`${dbBase}/profiles/${profileId}/openings`),
-
+    dataPoint<OpeningDoc>(`${dbBase}/profiles/${profileId}/openings`),
 };
 export interface OpeningDoc {
   formId: string;
+  formName: string;
+  formText: string;
   profileId: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -77,24 +80,25 @@ export interface OpeningDocWId extends OpeningDoc {
 
 const dbBase = "database/version2";
 
+export const getOpenForms = async (profileId: string) => {
+  const openQuery = await surveyDb
+    .openings(profileId)
+    .where("status", "==", "open")
+    .get();
 
-export const getOpenForms =async (profileId:string) => {
-  const openQuery =  await surveyDb.openings(profileId)
-  .where("status", "==", "open")
-  .get();
-  
-  const openForms = openQuery.docs
-  .map((snap)=>({...snap.data(), openId:snap.id }));
+  const openForms = openQuery.docs.map((snap) => ({
+    ...snap.data(),
+    openId: snap.id,
+  }));
 
   return openForms;
 };
 
-
 export const getProfilePageHeaderData = async (
   profileId: string | undefined
 ) => {
-  if(!profileId){
-    return undefined
+  if (!profileId) {
+    return undefined;
   }
   const profileDataRef = surveyDb.profile().doc(profileId);
   const profileSnap = await profileDataRef.get();
@@ -105,3 +109,34 @@ export const getProfilePageHeaderData = async (
 
   return profileData;
 };
+
+export const createNewIntent =async (profileId: string, openingId:string) => {
+  const openDocRef = surveyDb.openings(profileId).doc(openingId);
+  const newIntentRef = surveyDb.intents(profileId).doc();
+  const openDocSnap = await openDocRef.get();
+  const openDocData = openDocSnap.data();
+  
+  if(!openDocData){
+    return undefined;
+  }
+
+  const sectionStatus = openDocData.sectionOrder.reduce((arr, current)=>({...arr, [current]: false}), {})
+
+  const newIntentData = {
+    openingId,
+    profileId,
+    formId: openDocData.formId,
+    intentStatus: "in-progress",
+    sectionStatus: sectionStatus,
+    sectionOrder: openDocData.sectionOrder,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+
+  }
+
+  const writeNewIntent = await newIntentRef.set(newIntentData);
+
+  return { ...writeNewIntent, intentId: newIntentRef.id}
+  
+
+}
