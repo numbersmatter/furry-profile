@@ -2,7 +2,7 @@ import { ActionArgs, LoaderArgs, Response} from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { Outlet, useLoaderData } from "@remix-run/react";
 import { getUserIfSignedIn } from "~/server/auth.server";
-import { getProfilePageHeaderData } from "~/server/db.server";
+import { getProfilePageHeaderData, surveyDb } from "~/server/db.server";
 
 export async function action({params, request}:ActionArgs) {
   
@@ -12,10 +12,18 @@ export async function action({params, request}:ActionArgs) {
 
 export async function loader({params, request}:LoaderArgs) {
   const userRecord = await getUserIfSignedIn(request);
-  const pageHeaderData = await getProfilePageHeaderData(params.profileId);
-  if(!pageHeaderData){
+  const pageheaderDoc = await getProfilePageHeaderData(params.profileId);
+  if(!pageheaderDoc){
     throw new Response("no profile found", {status:404})
   }
+  
+  const pageHeaderData: {[key:string]:string} = {
+    bannerImage: pageheaderDoc?.bannerImage ?? "",
+    avatar: pageheaderDoc?.avatar ?? "",
+    displayName: pageheaderDoc?.displayName ?? "No Display Name",
+  }
+
+  
 
   return json({pageHeaderData});
 }
@@ -26,6 +34,7 @@ export default function FormSections() {
   const {pageHeaderData } = useLoaderData<typeof loader>();
   return (
     <div className="min-h-screen bg-[#2a9bb5] flex flex-col ">
+      {/*  @ts-ignore */}
       <ProfileHeader data={pageHeaderData} />
       <div className="mx-auto rounded-lg">
         <Outlet />

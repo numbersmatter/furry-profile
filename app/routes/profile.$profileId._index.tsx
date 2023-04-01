@@ -5,6 +5,7 @@ import { createNewIntent, getOpenForms, surveyDb } from "~/server/db.server";
 import { Disclosure } from '@headlessui/react';
 import { MinusSmallIcon, PlusSmallIcon } from '@heroicons/react/24/outline';
 import * as z from "zod"
+import { CheckIcon } from "@heroicons/react/20/solid";
 
 export async function action({ params, request }: ActionArgs) {
   let formData = await request.formData();
@@ -18,7 +19,6 @@ export async function action({ params, request }: ActionArgs) {
   const checkSchema = IntentCreateSchema.safeParse(values);
 
   const profileId = params.profileId ?? "no-profile"
-  const openId = values.openId ?? "no-openID"
 
   if (!checkSchema.success) {
     console.log("error on check checkSchema")
@@ -44,11 +44,20 @@ export async function loader({ params, request }: LoaderArgs) {
   const homepageDefault = {
     heroImage: "https://images.unsplash.com/photo-1606607291535-b0adfbf7424f?ixlib=rb-4.0.3&ixid=MnwxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8&auto=format&fit=crop&w=387&q=80",
     faq: [],
+    closedImage: "https://firebasestorage.googleapis.com/v0/b/fm-mvp6.appspot.com/o/website-assets%2Fclawfeehouseclosed.png?alt=media&token=8b93aedd-3fa4-4a76-8020-a2182d38db3e",
+    heroText: ""
   }
 
-  const homepageDisplay = homepageData ?? homepageDefault
 
-  const openforms = await getOpenForms("furscience");
+
+  const homepageDisplay = {
+    heroImage: homepageData?.heroImage ?? homepageDefault.heroImage,
+    faq: homepageData?.faq ?? homepageDefault.faq,
+    closedImage: homepageData?.closedImage ?? homepageDefault.closedImage,
+    heroText: homepageData?.heroText ?? homepageDefault.heroText,
+  }
+
+  const openforms = await getOpenForms(profileId);
 
 
   return json({ homepageDisplay, openforms });
@@ -77,20 +86,21 @@ export default function ProfileHomepage() {
                 openforms.map((openform) => {
                   return <Form replace method="post" key={openform.openId}  >
                     <input
-                      name="openId" 
-                      hidden 
-                      readOnly 
-                      value={openform.openId} 
+                      name="openId"
+                      hidden
+                      readOnly
+                      value={openform.openId}
                     />
-                    <input 
-                      name="profileId" 
-                      hidden 
-                      readOnly 
-                      value={openform.profileId} 
+                    <input
+                      name="profileId"
+                      hidden
+                      readOnly
+                      value={openform.profileId}
                     />
 
                     <CommisionCard
-                      buttonText="Sign-up"
+                    // @ts-ignore
+                      buttonText={openform.buttonText}
                       key={openform.openId}
                       name={openform.formName}
                       text={openform.formText}
@@ -216,47 +226,58 @@ function ProfileHero(props: IProfileHero) {
   )
 }
 
+// @ts-ignore
+function classNames(...classes) {
+  return classes.filter(Boolean).join(' ')
+}
 
 function CommisionCard(props: { name: string, text: string, linkUrl: string, buttonText?: string }) {
-  const { name, text, linkUrl, buttonText } = props;
+  const { name, text, buttonText } = props;
+  
+  // @ts-ignore
+  const features: string[] = []
 
   return (
-    <div className="max-w-2xl mx-auto rounded-lg shadow-lg overflow-hidden  lg:flex">
-      <div className="flex-1 bg-white px-6 py-8 lg:p-12">
-        <h3 className="text-2xl font-extrabold text-green-700 sm:text-3xl"> {name}</h3>
-        <p className="mt-6 text-base text-gray-500">
-          {text}
+    <div
+      className={classNames(
+
+        'flex flex-col  max-w-2xl mx-auto justify-between rounded-3xl bg-white p-8 ring-1 ring-gray-200 xl:p-10'
+      )}
+    >
+      <div>
+        <div className="flex items-center justify-between gap-x-4">
+          <h3
+            className={classNames(
+              'text-gray-900',
+              'text-3xl font-semibold leading-8'
+            )}
+          >
+            {name}
+          </h3>
+        </div>
+        <p className="mt-4 text-sm leading-6 text-gray-600">{text}</p>
+        <p className="mt-6 flex items-baseline gap-x-1">
+          {/* <span className="text-4xl font-bold tracking-tight text-gray-900">pricing</span>
+          <span className="text-sm font-semibold leading-6 text-gray-600">/month</span> */}
         </p>
-        <div className="mt-8">
-          <div className="flex items-center">
-            <h4 className="flex-shrink-0 pr-4 bg-white text-sm tracking-wider font-semibold uppercase text-indigo-600">
-
-            </h4>
-            <div className="flex-1 border-t-2 border-gray-200" />
-          </div>
-
-        </div>
+        <ul className="mt-8 space-y-3 text-sm leading-6 text-gray-600">
+          {features.map((feature) => (
+            <li key={feature} className="flex gap-x-3">
+              <CheckIcon className="h-6 w-5 flex-none text-indigo-600" aria-hidden="true" />
+              {feature}
+            </li>
+          ))}
+        </ul>
       </div>
-      <div className="py-8 px-6 text-center bg-gray-50 lg:flex-shrink-0 lg:flex lg:flex-col lg:justify-center lg:p-12">
+      <button
 
-        <div className="mt-6">
-          <div className="rounded-md shadow">
-            <button
-              type="submit"
-              className="flex items-center justify-center px-5 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-gray-900"
-            >
-              {buttonText ?? "Start Form"}
-            </button>
-          </div>
-        </div>
-        <div className="mt-4 text-sm">
-          {/* <a href="#" className="font-medium text-gray-900">
-          See Gallary <span className="font-normal text-gray-500">twitter</span>
-        </a> */}
-        </div>
-      </div>
-    </div>
-  );
+        className={classNames(
+          'bg-indigo-600 text-white shadow-sm hover:bg-indigo-500',          'mt-8 block rounded-md py-2 px-3 text-center text-sm font-semibold leading-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
+        )}
+      >
+        { buttonText ?? "Start Form"}
+      </button>
+    </div>);
 }
 
 

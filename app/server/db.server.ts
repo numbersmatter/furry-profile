@@ -47,6 +47,7 @@ export type Field = {
 };
 
 export const versionUrl = "testCollection/version6";
+const dbBase = "database/version2";
 
 export const surveyDb = {
   survey: () => dataPoint<SurveyDoc>(`${versionUrl}/survey`),
@@ -61,6 +62,10 @@ export const surveyDb = {
     dataPoint(
       `${dbBase}/profiles/${profileId}/intents/${intentId}/sectionResponse`
     ),
+    newAssets: (profileId: string) =>
+    dataPoint(`${dbBase}/profiles/${profileId}/profile_assets`),
+  newIntent: ()=>dataPoint<IntentDoc>(`${dbBase}/intents`),
+
 };
 
 export const getSectionResponse = async (
@@ -123,6 +128,7 @@ export interface IntentDoc {
 
 export interface OpeningDoc {
   formId: string;
+  buttonText?: string;
   formName: string;
   formText: string;
   profileId: string;
@@ -141,7 +147,6 @@ export interface OpeningDocWId extends OpeningDoc {
   openId: string;
 }
 
-const dbBase = "database/version2";
 
 export const getOpenForms = async (profileId: string) => {
   const openQuery = await surveyDb
@@ -163,7 +168,7 @@ export const getProfilePageHeaderData = async (
   if (!profileId) {
     return undefined;
   }
-  const profileDataRef = surveyDb.profile().doc(profileId);
+  const profileDataRef = surveyDb.newAssets(profileId).doc("pageheader");
   const profileSnap = await profileDataRef.get();
   const profileData = profileSnap.data();
   if (!profileData) {
@@ -232,6 +237,10 @@ export const createNewIntent = async (profileId: string, openingId: string) => {
   };
   // @ts-ignore
   const writeNewIntent = await newIntentRef.set(newIntentData);
+  const newIntentColRef = surveyDb.newIntent().doc(newIntentRef.id);
+  
+  // @ts-ignore
+  const writeNewCol = await newIntentColRef.set(newIntentData);
 
   return { ...writeNewIntent, intentId: newIntentRef.id };
 };
