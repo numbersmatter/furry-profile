@@ -8,8 +8,11 @@ import {
   ServerIcon,
 } from '@heroicons/react/20/solid'
 import { BoltIcon, CalendarDaysIcon, UsersIcon } from '@heroicons/react/24/outline'
-import { json, LoaderArgs } from '@remix-run/node'
-import { useLoaderData } from '@remix-run/react'
+import { ActionArgs, json, LoaderArgs } from '@remix-run/node'
+import { Form, Link, useActionData, useLoaderData } from '@remix-run/react'
+import { z } from 'zod'
+import { subcribeNewsletter, surveyDb } from '~/server/db.server'
+import { db } from '~/server/firebase.server'
 
 
 const primaryFeatures = [
@@ -101,19 +104,50 @@ const footerNavigation = {
 
 }
 
-export async function loader({ params, request }: LoaderArgs) {
-  const heroSection ={
-    image: "https://firebasestorage.googleapis.com/v0/b/furry-artist.appspot.com/o/furbrush%2FScreenshot%202023-03-31%20at%205.44.52%20PM.png?alt=media&token=3aad98e7-bf7d-42b5-af52-7d6444e4111e",
-    logo:"https://firebasestorage.googleapis.com/v0/b/component-sites.appspot.com/o/furrymarketplace%2FFM%20logo%201.png?alt=media&token=c5e02204-27f3-4996-ac93-738f589826fb",
+
+export async function action({ params, request }: ActionArgs) {
+  const formData = await request.formData();
+  const emailValue = formData.get("email");
+  const EmailSchema = z.string().email();
+  const checkEmail = EmailSchema.safeParse(emailValue);
+
+  if (!checkEmail.success) {
+    const errorMessage = checkEmail.error.issues[0].message;
+    return { 
+      success: false, 
+      errorMessage,
+      email: "none",
+      intentId: "no-intent",
+     };
+  } else {
+    const docData = {
+      email: checkEmail.data
+    }
+    const subscribe = await subcribeNewsletter(checkEmail.data)
+    console.log(subscribe)
+    return subscribe;
   }
 
-  return json({heroSection})
+
+
+}
+
+
+
+export async function loader({ params, request }: LoaderArgs) {
+  const heroSection = {
+    image: "https://firebasestorage.googleapis.com/v0/b/furry-artist.appspot.com/o/furbrush%2FScreenshot%202023-03-31%20at%205.44.52%20PM.png?alt=media&token=3aad98e7-bf7d-42b5-af52-7d6444e4111e",
+    logo: "https://firebasestorage.googleapis.com/v0/b/component-sites.appspot.com/o/furrymarketplace%2FFM%20logo%201.png?alt=media&token=c5e02204-27f3-4996-ac93-738f589826fb",
+  }
+
+  return json({ heroSection })
 }
 
 
 
 export default function FurbrushHome() {
-  const { heroSection} = useLoaderData();
+  const { heroSection } = useLoaderData();
+  let actionData = useActionData<typeof action>();
   return (
     <div className="bg-[#2a9bb5]">
       <main>
@@ -207,16 +241,23 @@ export default function FurbrushHome() {
 
 
         {/* Feature section */}
-     
+
 
         {/* Feature section */}
-       
+
 
         {/* Stats */}
- 
+
 
         {/* CTA section */}
-       <NewsletterSignup />
+        <Form replace method='post' >
+          {
+            actionData?.success == true
+              ? <CompleteForm intentId={actionData ? actionData.intentId : ""} />
+              : <NewsletterSignup errorMessage={actionData ? actionData.errorMessage : ""} />
+          }
+
+        </Form>
       </main>
 
       {/* Footer */}
@@ -227,7 +268,7 @@ export default function FurbrushHome() {
         <div className="mx-auto max-w-7xl px-6 pb-8 pt-4 lg:px-8">
           <div className="border-t border-white/10 pt-8 md:flex md:items-center md:justify-between">
             <div className="flex space-x-6 md:order-2">
-              
+
             </div>
             <p className="mt-8 text-xs leading-5 text-gray-400 md:order-1 md:mt-0">
               &copy; 2023 Furbrush, Inc. All rights reserved.
@@ -238,6 +279,8 @@ export default function FurbrushHome() {
     </div>
   )
 }
+
+
 
 /*
   This example requires some changes to your config:
@@ -252,8 +295,36 @@ export default function FurbrushHome() {
     ],
   }
   ```
-*/ 
-function NewsletterSignup() {
+*/
+function CompleteForm(props: {intentId: string}) {
+  const formLocation = `/profile/furscience/intent/${props.intentId}`
+  return (
+    <div className="bg-white py-16 sm:py-24 lg:py-32">
+      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-6 lg:grid-cols-12 lg:gap-8 lg:px-8">
+        <div className="max-w-xl text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl lg:col-span-7">
+          <h2 className="inline sm:block lg:inline xl:block">Thanks for subscribing!</h2>{' '}
+          <p className="inline  text-2xl sm:block lg:inline xl:block">
+            Could you answer three more quick questions about what you would like to see?
+          </p>
+        </div>
+        <div className="w-full max-w-md lg:col-span-5 lg:pt-2">
+          <div className="flex gap-x-4">
+            <Link
+              to={formLocation}
+              className="flex-none rounded-md bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+            >
+              Answer Survey
+            </Link>
+          </div>
+          <p className="mt-4 text-sm leading-6 text-gray-900">
+
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+function NewsletterSignup(props: {errorMessage: string | undefined}) {
   return (
     <div className="bg-white py-16 sm:py-24 lg:py-32">
       <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-6 lg:grid-cols-12 lg:gap-8 lg:px-8">
@@ -261,7 +332,7 @@ function NewsletterSignup() {
           <h2 className="inline sm:block lg:inline xl:block">Want updates on our journey?</h2>{' '}
           <p className="inline sm:block lg:inline xl:block">Sign up for our newsletter and get helpful commission management tips as well.</p>
         </div>
-        <form className="w-full max-w-md lg:col-span-5 lg:pt-2">
+        <div className="w-full max-w-md lg:col-span-5 lg:pt-2">
           <div className="flex gap-x-4">
             <label htmlFor="email-address" className="sr-only">
               Email address
@@ -275,6 +346,11 @@ function NewsletterSignup() {
               className="min-w-0 flex-auto rounded-md border-0 px-3.5 py-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
               placeholder="Enter your email"
             />
+            {/* {
+              errorMessage
+                ? <p>{errorMessage}</p>
+                : <p></p>
+            } */}
             <button
               type="submit"
               className="flex-none rounded-md bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
@@ -285,7 +361,7 @@ function NewsletterSignup() {
           <p className="mt-4 text-sm leading-6 text-gray-900">
             We care about your data. No spam, just twice a month updates.
           </p>
-        </form>
+        </div>
       </div>
     </div>
   )

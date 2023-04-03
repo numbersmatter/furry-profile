@@ -62,10 +62,10 @@ export const surveyDb = {
     dataPoint(
       `${dbBase}/profiles/${profileId}/intents/${intentId}/sectionResponse`
     ),
-    newAssets: (profileId: string) =>
+  newAssets: (profileId: string) =>
     dataPoint(`${dbBase}/profiles/${profileId}/profile_assets`),
-  newIntent: ()=>dataPoint<IntentDoc>(`${dbBase}/intents`),
-
+  newIntent: () => dataPoint<IntentDoc>(`${dbBase}/intents`),
+  emails: () => dataPoint(`${dbBase}/emails`),
 };
 
 export const getSectionResponse = async (
@@ -147,7 +147,6 @@ export interface OpeningDocWId extends OpeningDoc {
   openId: string;
 }
 
-
 export const getOpenForms = async (profileId: string) => {
   const openQuery = await surveyDb
     .openings(profileId)
@@ -176,6 +175,50 @@ export const getProfilePageHeaderData = async (
   }
 
   return profileData;
+};
+
+export const subcribeNewsletter = async (email: string) => {
+  const docData = {
+    email,
+    createdAt: FieldValue.serverTimestamp(),
+  };
+
+    const writeEmail = await surveyDb.emails().doc().set(docData);
+    const writeIntent = await createNewIntent(
+      "furscience",
+      "TBXun7aj6fdoZgKBm6FO"
+    );
+
+    const formValues = {
+      email,
+    };
+    const fields = [
+      {
+        fieldId:"email",
+        label: "Email Me At:",
+        type: "email"
+      }
+    ]
+
+    const sectionResponseData = {
+      fields,
+      formValues,
+    };
+
+    const writeResponse = await writeSectionResponse(
+      "furscience",
+      writeIntent?.intentId ?? "no-intent",
+      "A9u3hVgRUzvwFcpxCsND",
+      sectionResponseData
+    );
+
+  const success = writeIntent ? true : false;
+  return {
+    errorMessage: "",
+    success,
+    email,
+    intentId: writeIntent?.intentId ?? "write-failed",
+  };
 };
 
 export const getIntentDoc = async (
@@ -238,7 +281,7 @@ export const createNewIntent = async (profileId: string, openingId: string) => {
   // @ts-ignore
   const writeNewIntent = await newIntentRef.set(newIntentData);
   const newIntentColRef = surveyDb.newIntent().doc(newIntentRef.id);
-  
+
   // @ts-ignore
   const writeNewCol = await newIntentColRef.set(newIntentData);
 
