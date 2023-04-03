@@ -81,6 +81,26 @@ export const getSectionResponse = async (
   return sectionSnap.data();
 };
 
+export const saveImageUpload=async (
+  profileId: string,
+  intentId:string,
+  sectionId: string,
+  imageObj:  {
+    url: string,
+    description: string,
+  }
+ ) => {
+  const sectionResponseRef = surveyDb.sectionResponse(profileId, intentId).doc(sectionId);
+
+  const writeDetails = {
+    imageArray: FieldValue.arrayUnion(imageObj)
+  }
+
+  const writeImageDetails = sectionResponseRef.set(writeDetails, {merge: true});
+  return writeImageDetails;
+
+}
+
 export const writeSectionResponse = async (
   profileId: string,
   intentId: string,

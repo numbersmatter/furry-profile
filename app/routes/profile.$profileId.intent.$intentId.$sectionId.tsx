@@ -1,11 +1,12 @@
 import type { ActionArgs, LoaderArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { Form, Link, useActionData, useLoaderData } from "@remix-run/react";
+import { Form, Link, useActionData, useFetcher, useLoaderData } from "@remix-run/react";
 import type { ReactNode } from "react";
-import { Field, FieldTypes, getIntentDoc, getOpeningDoc, getSectionResponse, writeSectionResponse } from "~/server/db.server";
+import { useRef, useState } from "react";
+import type { Field } from "~/server/db.server";
+import { getIntentDoc, getOpeningDoc, getSectionResponse, writeSectionResponse } from "~/server/db.server";
 import StackedField from "~/server/ui/StackFields";
 import * as z from "zod";
-import { CurrencyBangladeshiIcon } from "@heroicons/react/20/solid";
 // import { FieldValue } from "firebase-admin/firestore";
 
 export async function action({ params, request }: ActionArgs) {
@@ -36,8 +37,8 @@ export async function action({ params, request }: ActionArgs) {
       return z.string();
     }
     if (field.type === "select") {
-      const options = field.options ?? []
-      const validOptions = options.map(option => option.value)
+      // const options = field.options ?? []
+      // const validOptions = options.map(option => option.value)
       return z.string();
     }
     return z.string();
@@ -99,53 +100,101 @@ export async function loader({ params, request }: LoaderArgs) {
   const sectionData = openingDoc.sections[sectionIndex];
   const fieldValues: { [key: string]: string } = sectionResponseData?.formValues ?? {}
 
+  const intentId = params.intentId ?? "no-intent"
 
-  return json({ sectionData, fieldValues, backurl });
+  return json({ sectionData, fieldValues, backurl, intentId });
 }
 
 
 
 export default function FormSections() {
-  const { sectionData, fieldValues, backurl } = useLoaderData<typeof loader>();
+  const [filesPresent, setFilesPresent] = useState<boolean>(false);
+  const [fileName, setFileName] = useState<string>("");
+
+  let fileInputRef = useRef(null);
+  const checkFilesPresent = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault()
+    const filesArray = e.currentTarget.files ?? []
+    const areFiles = filesArray.length > 0
+
+    if (areFiles) {
+      setFileName(filesArray[0].name)
+      return setFilesPresent(true)
+    }
+    return setFilesPresent(false)
+  };
+
+
+  const { sectionData, fieldValues, backurl, intentId } = useLoaderData<typeof loader>();
   const actionData = useActionData();
   return (
-    <Form method="post">
-      <div className="max-w-2xl pt-6 pb-5">
-        <SectionPanel name={sectionData.name} text={sectionData.text}>
-          {
-            sectionData.fields.map((field) => {
-              const errorObj = actionData ?? {}
-              const errorText = errorObj[field.fieldId] ?? undefined
-              const defaultValue = fieldValues[field.fieldId] ?? ""
+    <>
+      <Form method="post">
+        <div className="max-w-2xl pt-6 pb-5">
+          <SectionPanel name={sectionData.name} text={sectionData.text}>
+            {
+              sectionData.fields.map((field) => {
+                const errorObj = actionData ?? {}
+                const errorText = errorObj[field.fieldId] ?? undefined
+                const defaultValue = fieldValues[field.fieldId] ?? ""
 
-              return <StackedField
-                key={field.fieldId}
-                field={field}
-                errorText={errorText}
-                defaultValue={defaultValue}
-              />
+                return <StackedField
+                  key={field.fieldId}
+                  field={field}
+                  errorText={errorText}
+                  defaultValue={defaultValue}
+                />
+              }
+              )
             }
-            )
-          }
-        </SectionPanel>
-        <div className="py-3 flex justify-end">
-          <Link
-            to={backurl}
-            type="button"
-            className="rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-          >
-            Back
-          </Link>
-          <button
-            type="submit"
-            className="ml-3 inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-          >
-            Save
-          </button>
+          </SectionPanel>
+          <div className="py-3 flex justify-end">
+            <Link
+              to={backurl}
+              type="button"
+              className="rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            >
+              Back
+            </Link>
+            <button
+              type="submit"
+              className="ml-3 inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
+            >
+              Save
+            </button>
+          </div>
         </div>
-      </div>
-    </Form>
+      </Form>
+      <ImageUploadFetch 
+        onChange={checkFilesPresent} 
+        intentId={intentId}
+      />
+    </>
   );
+}
+
+function ImageUploadFetch( props: { 
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void,
+  intentId:string,
+
+}) {
+  let fetcher = useFetcher();
+
+  const postUrl =`api/${props.intentId}.imageUpload`
+  return (
+    <Form method="post" encType="multipart/form-data" action={postUrl}>
+      <input
+        // ref={props.ref}
+        // className="hidden"
+        onChange={(e) => props.onChange(e)}
+        id="img-field"
+        type="file"
+        name="img"
+        accept="image/*"
+      />
+      <button type="submit">submit</button>
+    </Form>
+  )
 }
 
 function SectionPanel(props: { name: string, text: string, children: ReactNode }) {
