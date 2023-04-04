@@ -1,6 +1,6 @@
 import type { ActionArgs, LoaderArgs } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { Form, Link, Outlet, useActionData, useFetcher, useLoaderData, useParams } from "@remix-run/react";
+import { Form, Link, useActionData, useFetcher, useLoaderData, useParams } from "@remix-run/react";
 import type { ReactNode } from "react";
 import { useRef, useState } from "react";
 import type { Field } from "~/server/db.server";
@@ -78,10 +78,18 @@ export async function loader({ params, request }: LoaderArgs) {
   if (!openingDoc) {
     throw new Response("no open form document", { status: 404 })
   }
+  const sectionIndex = openingDoc.sectionOrder.findIndex(sectionId => params.sectionId == sectionId)
+
+
+  const sectionData = openingDoc.sections[sectionIndex];
+  const isImageUpload = sectionData?.type === "imageUpload"
+
+  if(isImageUpload){
+    return redirect("upload")
+  }
 
   const sectionResponseData = await getSectionResponse(intentDoc.profileId, intentDoc.intentId, params.sectionId ?? "no-sectionId")
 
-  const sectionIndex = openingDoc.sectionOrder.findIndex(sectionId => params.sectionId == sectionId)
 
   if (sectionIndex < 0) {
     throw new Response("error valid section id", { status: 404 })
@@ -97,7 +105,6 @@ export async function loader({ params, request }: LoaderArgs) {
     ? `/profile/${intentDoc.profileId}`
     : `/profile/${intentDoc.profileId}/intent/${intentDoc.intentId}/${previousSection}`
 
-  const sectionData = openingDoc.sections[sectionIndex];
   const fieldValues: { [key: string]: string } = sectionResponseData?.formValues ?? {}
 
   const intentId = params.intentId ?? "no-intent"
@@ -130,13 +137,11 @@ export default function FormSections() {
   const { sectionData, fieldValues, backurl, intentId } = useLoaderData<typeof loader>();
   const actionData = useActionData();
 
-  const actionUrl = `/api/${intentId}/${sectionId}/response`
 
 
   return (
     <>
-    <Outlet />
-      {/* <Form method="post" action={actionUrl}>
+      <Form method="post">
         <div className="max-w-2xl pt-6 pb-5">
           <SectionPanel name={sectionData.name} text={sectionData.text}>
             {
@@ -172,37 +177,10 @@ export default function FormSections() {
           </div>
         </div>
       </Form>
-      <ImageUploadFetch 
-        onChange={checkFilesPresent} 
-        intentId={intentId}
-      /> */}
     </>
   );
 }
 
-function ImageUploadFetch( props: { 
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void,
-  intentId:string,
-
-}) {
-  let fetcher = useFetcher();
-
-  const postUrl =`api/${props.intentId}.imageUpload`
-  return (
-    <Form method="post" encType="multipart/form-data" action={postUrl}>
-      <input
-        // ref={props.ref}
-        // className="hidden"
-        onChange={(e) => props.onChange(e)}
-        id="img-field"
-        type="file"
-        name="img"
-        accept="image/*"
-      />
-      <button type="submit">submit</button>
-    </Form>
-  )
-}
 
 function SectionPanel(props: { name: string, text: string, children: ReactNode }) {
 

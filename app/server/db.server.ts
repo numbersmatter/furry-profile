@@ -161,6 +161,7 @@ export interface OpeningDoc {
     fields: Field[];
     name: string;
     text: string;
+    type?: "imageUpload" | "fields"
   }[];
 }
 export interface OpeningDocWId extends OpeningDoc {
