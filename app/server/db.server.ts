@@ -88,6 +88,7 @@ export const saveImageUpload=async (
   imageObj:  {
     url: string,
     description: string,
+    imageId: string,
   }
  ) => {
   const sectionResponseRef = surveyDb.sectionResponse(profileId, intentId).doc(sectionId);
@@ -116,7 +117,7 @@ export const writeSectionResponse = async (
   return writeData;
 };
 
-const setSectionComplete = async (
+export const setSectionComplete = async (
   profileId: string,
   intentId: string,
   sectionId: string

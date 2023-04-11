@@ -1,9 +1,10 @@
+import { XCircleIcon } from "@heroicons/react/20/solid";
 import { ActionArgs, LoaderArgs, unstable_composeUploadHandlers, unstable_createMemoryUploadHandler, unstable_parseMultipartFormData, UploadHandler } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
 import { Form, Link, useActionData, useLoaderData } from "@remix-run/react";
 import { ReactNode, useState } from "react";
 import { uploadImage } from "~/server/cloudinary.server";
-import { saveImageUpload } from "~/server/db.server";
+import { getIntentDoc, getOpeningDoc, getSectionResponse, saveImageUpload, setSectionComplete } from "~/server/db.server";
 
 export async function action({ params, request }: ActionArgs) {
   const intentId = params.intentId ?? "no-intent"
@@ -29,12 +30,14 @@ export async function action({ params, request }: ActionArgs) {
   if (!imgSrc) {
     return json({ error: "something wrong" });
   }
+  // random id
+  const imageId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
   await saveImageUpload(
-    "furscience", 
-    "36AdybwjSPrGePBBUSrN", 
-    "9SuJjiOMmonFW1GZ6ghx", 
-    { url: imgSrc, description: imgDesc }
+    params.profileId ?? "no-profile",
+    params.intentId ?? "no-intent",
+    params.sectionId ?? "no-section",
+    { url: imgSrc, description: imgDesc, imageId }
   )
   const imageUploadedText = `${imgDesc} uploaded`
   return json({ imageUploadedText });
@@ -45,9 +48,41 @@ export async function action({ params, request }: ActionArgs) {
 }
 
 export async function loader({ params, request }: LoaderArgs) {
-  const intentId = params.intentId ?? "no-intent";
+  const intentDoc = await getIntentDoc(params.profileId, params.intentId)
+  if (!intentDoc) {
+    throw new Response("no intent document", { status: 404 })
+  }
+  const openingDoc = await getOpeningDoc(intentDoc.profileId, intentDoc.openingId)
+  if (!openingDoc) {
+    throw new Response("no open form document", { status: 404 })
+  }
 
-  return json({ intentId });
+  const sectionResponseData = await getSectionResponse(intentDoc.profileId, intentDoc.intentId, params.sectionId ?? "no-sectionId")
+
+  const imageArray = sectionResponseData?.imageArray ?? []
+
+  const sectionIndex = openingDoc.sectionOrder.findIndex(sectionId => params.sectionId == sectionId)
+
+  if (sectionIndex < 0) {
+    throw new Response("error valid section id", { status: 404 })
+  }
+
+  const previousIndex = sectionIndex - 1
+
+  const previousSection = sectionIndex > 0
+    ? openingDoc.sectionOrder[previousIndex]
+    : "cancel"
+  
+  const nextUrl = `/profile/${intentDoc.profileId}/intent/${intentDoc.intentId}`
+
+  const backurl = previousSection === "cancel"
+    ? `/profile/${intentDoc.profileId}`
+    : `/profile/${intentDoc.profileId}/intent/${intentDoc.intentId}/${previousSection}`
+
+  const sectionData = openingDoc.sections[sectionIndex];
+  await setSectionComplete(intentDoc.profileId, intentDoc.intentId, params.sectionId ?? "no-sectionId")
+
+  return json({ sectionData, sectionResponseData, imageArray, backurl, nextUrl });
 }
 
 
@@ -55,7 +90,7 @@ export async function loader({ params, request }: LoaderArgs) {
 export default function FormSections() {
   const [filesPresent, setFilesPresent] = useState<boolean>(false);
   const [fileName, setFileName] = useState<string>("");
-  const { intentId } = useLoaderData<typeof loader>();
+  const { sectionData, sectionResponseData, imageArray, nextUrl } = useLoaderData<typeof loader>();
 
   // let fileInputRef = useRef(null);
   const checkFilesPresent = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -70,14 +105,13 @@ export default function FormSections() {
     return setFilesPresent(false)
   };
 
-  const actionUrl = `/api/${intentId}/imageUpload`
 
   const actionData = useActionData();
   return (
     <>
       <  >
         <div className="max-w-2xl pt-6 pb-5">
-          <SectionPanel name={"imageUpload"} text={""}>
+          <SectionPanel name={sectionData.name} text={sectionData.text}>
             <Form
               replace
               method="post"
@@ -123,16 +157,68 @@ export default function FormSections() {
                 </div>
 
               </fieldset>
-              <button
-                type="submit"
-                className="ml-3 inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-              >
-                Save
-              </button>
+             
 
             </Form>
 
           </SectionPanel>
+          <div className="py-4">
+            <h4 className="text-xl text-slate-700">Uploaded Images:</h4>
+            <p>Uploaded images will appear here. If you do not see your image it did not upload correctly.</p>
+            <ul
+              className=" pt-2 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 sm:gap-x-6 lg:grid-cols-4 xl:gap-x-8"
+            >
+              {
+
+                 imageArray.length > 0 ?
+                  imageArray.map((imageData: { url: string; description: string; imageId: string;}
+                  ) => (
+                    <li key={imageData.url} className="relative">
+                      <div className="group aspect-w-10 aspect-h-7 block w-full overflow-hidden rounded-lg bg-gray-100 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-2 focus-within:ring-offset-gray-100">
+                        <img src={imageData.url} alt="" className="pointer-events-none object-cover group-hover:opacity-75" />
+                      </div>
+                      <p className="pointer-events-none mt-2 block truncate text-sm font-medium text-gray-900">{imageData.description}</p>
+                      <Form replace method="post" action={""}>
+                        <button name="_action" value="delete" className="inline-flex items-center gap-x-1.5 rounded-md bg-slate-100 py-1.5 px-2.5 text-sm font-semibold text-slate-500 shadow-sm hover:bg-red-500  hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"> <XCircleIcon className="h-6 w-6 " /> Delete </button>
+                        <input
+                          className="hidden"
+                          name="imageId"
+                          value={imageData.imageId}
+                          readOnly
+                        />
+                        <input
+                          className="hidden"
+                          name="url"
+                          value={imageData.url}
+                          readOnly
+                        />
+                        <input
+                          className="hidden"
+                          name="description"
+                          value={imageData.description}
+                          readOnly
+                        />
+                      </Form>
+                    </li>
+                  ))
+                  : <div className="mx-auto ">
+
+                    <p className="text-xl text-slate-500"> No images uploaded</p>
+                  </div>
+
+              }
+            </ul>
+          </div>
+
+
+
+
+
+
+
+
+
+
           <div className="py-3 flex justify-end">
             <Link
               to={".."}
@@ -141,12 +227,12 @@ export default function FormSections() {
             >
               Back
             </Link>
-            <button
-              type="submit"
+            <Link
+              to={nextUrl}
               className="ml-3 inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
             >
               Save
-            </button>
+            </Link>
           </div>
         </div>
       </>

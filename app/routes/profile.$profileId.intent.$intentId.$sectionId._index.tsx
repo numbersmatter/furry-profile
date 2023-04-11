@@ -80,9 +80,11 @@ export async function loader({ params, request }: LoaderArgs) {
   }
   const sectionIndex = openingDoc.sectionOrder.findIndex(sectionId => params.sectionId == sectionId)
 
-
+  
+  
   const sectionData = openingDoc.sections[sectionIndex];
   const isImageUpload = sectionData?.type === "imageUpload"
+  console.log(sectionData)
 
   if(isImageUpload){
     return redirect("upload")
@@ -115,24 +117,6 @@ export async function loader({ params, request }: LoaderArgs) {
 
 
 export default function FormSections() {
-  const [filesPresent, setFilesPresent] = useState<boolean>(false);
-  const [fileName, setFileName] = useState<string>("");
-  const params = useParams();
-  const sectionId = params.sectionId;
-
-  let fileInputRef = useRef(null);
-  const checkFilesPresent = (e: React.ChangeEvent<HTMLInputElement>) => {
-    e.preventDefault()
-    const filesArray = e.currentTarget.files ?? []
-    const areFiles = filesArray.length > 0
-
-    if (areFiles) {
-      setFileName(filesArray[0].name)
-      return setFilesPresent(true)
-    }
-    return setFilesPresent(false)
-  };
-
 
   const { sectionData, fieldValues, backurl, intentId } = useLoaderData<typeof loader>();
   const actionData = useActionData();
