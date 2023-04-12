@@ -81,26 +81,29 @@ export const getSectionResponse = async (
   return sectionSnap.data();
 };
 
-export const saveImageUpload=async (
+export const saveImageUpload = async (
   profileId: string,
-  intentId:string,
+  intentId: string,
   sectionId: string,
-  imageObj:  {
-    url: string,
-    description: string,
-    imageId: string,
+  imageObj: {
+    url: string;
+    description: string;
+    imageId: string;
   }
- ) => {
-  const sectionResponseRef = surveyDb.sectionResponse(profileId, intentId).doc(sectionId);
+) => {
+  const sectionResponseRef = surveyDb
+    .sectionResponse(profileId, intentId)
+    .doc(sectionId);
 
   const writeDetails = {
-    imageArray: FieldValue.arrayUnion(imageObj)
-  }
+    imageArray: FieldValue.arrayUnion(imageObj),
+  };
 
-  const writeImageDetails = sectionResponseRef.set(writeDetails, {merge: true});
+  const writeImageDetails = sectionResponseRef.set(writeDetails, {
+    merge: true,
+  });
   return writeImageDetails;
-
-}
+};
 
 export const writeSectionResponse = async (
   profileId: string,
@@ -115,6 +118,30 @@ export const writeSectionResponse = async (
   const writeData = await sectionResponseRef.set(data);
   await setSectionComplete(profileId, intentId, sectionId);
   return writeData;
+};
+export const writeSectionImageResponse = async (
+  profileId: string,
+  intentId: string,
+  sectionId: string,
+  imageObj: {
+    url: string;
+    description: string;
+    imageId: string;
+  }
+) => {
+  const sectionResponseRef = surveyDb
+    .sectionResponse(profileId, intentId)
+    .doc(sectionId);
+
+  const writeDetails = {
+    imageArray: FieldValue.arrayUnion(imageObj),
+  };
+
+  const writeData = await sectionResponseRef.set(writeDetails, {
+    merge: true,
+  });
+  await setSectionComplete(profileId, intentId, sectionId);
+  return writeDetails;
 };
 
 export const setSectionComplete = async (
@@ -132,6 +159,37 @@ export const setSectionComplete = async (
   };
 
   const writeData = intentDocRef.update(updateData);
+  return writeData;
+};
+
+export const deleteImage = async (
+  profileId: string,
+  intentId: string,
+  sectionId: string,
+  imageId: string
+) => {
+  const sectionResponseRef = surveyDb
+    .sectionResponse(profileId, intentId)
+    .doc(sectionId);
+
+  const sectionSnap = await sectionResponseRef.get();
+  const sectionData = sectionSnap.data();
+
+  if(!sectionData) return;
+
+  const imageArray = sectionData.imageArray;
+
+  const newImageArray = imageArray.filter(
+    (image: { imageId: string }) => image.imageId !== imageId
+  );
+
+  const writeDetails = {
+    imageArray: newImageArray,
+  };
+
+  const writeData = await sectionResponseRef.set(writeDetails, {
+    merge: true,
+  });
   return writeData;
 };
 
@@ -162,7 +220,7 @@ export interface OpeningDoc {
     fields: Field[];
     name: string;
     text: string;
-    type?: "imageUpload" | "fields"
+    type?: "imageUpload" | "fields";
   }[];
 }
 export interface OpeningDocWId extends OpeningDoc {
@@ -205,34 +263,34 @@ export const subcribeNewsletter = async (email: string) => {
     createdAt: FieldValue.serverTimestamp(),
   };
 
-    const writeEmail = await surveyDb.emails().doc().set(docData);
-    const writeIntent = await createNewIntent(
-      "furscience",
-      "TBXun7aj6fdoZgKBm6FO"
-    );
+  const writeEmail = await surveyDb.emails().doc().set(docData);
+  const writeIntent = await createNewIntent(
+    "furscience",
+    "TBXun7aj6fdoZgKBm6FO"
+  );
 
-    const formValues = {
-      email,
-    };
-    const fields = [
-      {
-        fieldId:"email",
-        label: "Email Me At:",
-        type: "email"
-      }
-    ]
+  const formValues = {
+    email,
+  };
+  const fields = [
+    {
+      fieldId: "email",
+      label: "Email Me At:",
+      type: "email",
+    },
+  ];
 
-    const sectionResponseData = {
-      fields,
-      formValues,
-    };
+  const sectionResponseData = {
+    fields,
+    formValues,
+  };
 
-    const writeResponse = await writeSectionResponse(
-      "furscience",
-      writeIntent?.intentId ?? "no-intent",
-      "A9u3hVgRUzvwFcpxCsND",
-      sectionResponseData
-    );
+  const writeResponse = await writeSectionResponse(
+    "furscience",
+    writeIntent?.intentId ?? "no-intent",
+    "A9u3hVgRUzvwFcpxCsND",
+    sectionResponseData
+  );
 
   const success = writeIntent ? true : false;
   return {

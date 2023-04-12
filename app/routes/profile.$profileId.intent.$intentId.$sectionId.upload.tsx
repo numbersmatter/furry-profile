@@ -1,10 +1,10 @@
 import { XCircleIcon } from "@heroicons/react/20/solid";
 import { ActionArgs, LoaderArgs, unstable_composeUploadHandlers, unstable_createMemoryUploadHandler, unstable_parseMultipartFormData, UploadHandler } from "@remix-run/node";
 import { json, redirect } from "@remix-run/node";
-import { Form, Link, useActionData, useLoaderData } from "@remix-run/react";
-import { ReactNode, useState } from "react";
+import { Form, Link, useActionData, useLoaderData, useNavigation, useSubmit } from "@remix-run/react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { uploadImage } from "~/server/cloudinary.server";
-import { getIntentDoc, getOpeningDoc, getSectionResponse, saveImageUpload, setSectionComplete } from "~/server/db.server";
+import { getIntentDoc, getOpeningDoc, getSectionResponse, saveImageUpload, setSectionComplete, writeSectionImageResponse } from "~/server/db.server";
 
 export async function action({ params, request }: ActionArgs) {
   const intentId = params.intentId ?? "no-intent"
@@ -33,7 +33,7 @@ export async function action({ params, request }: ActionArgs) {
   // random id
   const imageId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
-  await saveImageUpload(
+  await writeSectionImageResponse(
     params.profileId ?? "no-profile",
     params.intentId ?? "no-intent",
     params.sectionId ?? "no-section",
@@ -41,13 +41,15 @@ export async function action({ params, request }: ActionArgs) {
   )
   const imageUploadedText = `${imgDesc} uploaded`
   return json({ imageUploadedText });
-
-
-
-
 }
 
 export async function loader({ params, request }: LoaderArgs) {
+  const profileId = params.profileId ?? "no-profileId"
+  const intentId = params.intentId ?? "no-intentId"
+  const sectionId = params.sectionId ?? "no-sectionId"
+
+  const pathData = { profileId, intentId, sectionId }
+
   const intentDoc = await getIntentDoc(params.profileId, params.intentId)
   if (!intentDoc) {
     throw new Response("no intent document", { status: 404 })
@@ -68,12 +70,20 @@ export async function loader({ params, request }: LoaderArgs) {
   }
 
   const previousIndex = sectionIndex - 1
-
-  const previousSection = sectionIndex > 0
-    ? openingDoc.sectionOrder[previousIndex]
-    : "cancel"
   
-  const nextUrl = `/profile/${intentDoc.profileId}/intent/${intentDoc.intentId}`
+  const previousSection = sectionIndex > 0
+  ? openingDoc.sectionOrder[previousIndex]
+  : "cancel"
+  
+  const nextIndex = sectionIndex + 1
+
+  const nextSection = nextIndex < openingDoc.sectionOrder.length
+    ? openingDoc.sectionOrder[nextIndex]
+    : "submit"
+
+  
+
+  const nextUrl = `/profile/${intentDoc.profileId}/intent/${intentDoc.intentId}/${nextSection}`
 
   const backurl = previousSection === "cancel"
     ? `/profile/${intentDoc.profileId}`
@@ -82,31 +92,57 @@ export async function loader({ params, request }: LoaderArgs) {
   const sectionData = openingDoc.sections[sectionIndex];
   await setSectionComplete(intentDoc.profileId, intentDoc.intentId, params.sectionId ?? "no-sectionId")
 
-  return json({ sectionData, sectionResponseData, imageArray, backurl, nextUrl });
+  return json({ sectionData, sectionResponseData, imageArray, backurl, nextUrl, pathData });
 }
 
 
 
-export default function FormSections() {
+export default function ImageUploadSection() {
   const [filesPresent, setFilesPresent] = useState<boolean>(false);
   const [fileName, setFileName] = useState<string>("");
-  const { sectionData, sectionResponseData, imageArray, nextUrl } = useLoaderData<typeof loader>();
+  const { sectionData, sectionResponseData, imageArray, nextUrl, pathData } = useLoaderData<typeof loader>();
 
-  // let fileInputRef = useRef(null);
+
+  const actionData = useActionData<typeof action>();
+  let transition = useNavigation();
+  let submit = useSubmit();
+  let isUploading =
+    transition.state === "submitting" &&
+    transition.formData.get("_action") === "uploadImage"
+
+  // transition.submission?.formData.get("_action") === "uploadImage"
+
+  let formRef = useRef();
+  let fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (filesPresent && formRef.current) {
+      submit(formRef.current, {})
+    }
+  }, [filesPresent, submit])
+
+  useEffect(() => {
+    if (!isUploading) {
+      // @ts-ignore
+      formRef.current?.reset()
+      setFilesPresent(false)
+    }
+  }, [isUploading])
   const checkFilesPresent = (e: React.ChangeEvent<HTMLInputElement>) => {
     e.preventDefault()
     const filesArray = e.currentTarget.files ?? []
     const areFiles = filesArray.length > 0
 
     if (areFiles) {
-      setFileName(filesArray[0].name)
       return setFilesPresent(true)
     }
     return setFilesPresent(false)
   };
+  const openFileInput = () => {
+    // @ts-ignore
+    fileInputRef.current.click()
+  }
 
-
-  const actionData = useActionData();
   return (
     <>
       <  >
@@ -116,7 +152,8 @@ export default function FormSections() {
               replace
               method="post"
               encType="multipart/form-data"
-
+              // @ts-ignore
+              ref={formRef}
             >
               {actionData ? <p>{JSON.stringify(actionData)}</p> : <p>
               </p>}
@@ -125,8 +162,8 @@ export default function FormSections() {
 
                   {/* <label className=" max-w-xs inline-flex items-center border-2 gap-x-4 rounded-md bg-slate-500 py-2.5 px-3.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 hover:border-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600" htmlFor="img-field"> */}
                   <input
-                    // ref={fileInputRef}
-                    // className="hidden"
+                    ref={fileInputRef}
+                    hidden// className="hidden"
                     onChange={(e) => checkFilesPresent(e)}
                     id="img-field"
                     type="file"
@@ -139,6 +176,23 @@ export default function FormSections() {
                     value="uploadImage"
                     readOnly
                   />
+                  <button
+                    type="button"
+                    // className={isUploading ? disabledClass : regularClass}
+                    onClick={openFileInput}
+                    disabled={isUploading}
+                  >
+
+                    {isUploading ? "Uploading..." : "Upload Image"}
+                  </button>
+                  <button
+                      onClick={openFileInput}
+                      disabled={isUploading}
+                      type="button"
+                      className="rounded-md bg-white px-2.5 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+                    >
+                      Change
+                    </button>
 
                   {/* </label> */}
                 </div>
@@ -157,7 +211,7 @@ export default function FormSections() {
                 </div>
 
               </fieldset>
-             
+
 
             </Form>
 
@@ -170,15 +224,15 @@ export default function FormSections() {
             >
               {
 
-                 imageArray.length > 0 ?
-                  imageArray.map((imageData: { url: string; description: string; imageId: string;}
+                imageArray.length > 0 ?
+                  imageArray.map((imageData: { url: string; description: string; imageId: string; }
                   ) => (
                     <li key={imageData.url} className="relative">
                       <div className="group aspect-w-10 aspect-h-7 block w-full overflow-hidden rounded-lg bg-gray-100 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-2 focus-within:ring-offset-gray-100">
                         <img src={imageData.url} alt="" className="pointer-events-none object-cover group-hover:opacity-75" />
                       </div>
                       <p className="pointer-events-none mt-2 block truncate text-sm font-medium text-gray-900">{imageData.description}</p>
-                      <Form replace method="post" action={""}>
+                      <Form replace method="post" action={"/api/deleteImages"}>
                         <button name="_action" value="delete" className="inline-flex items-center gap-x-1.5 rounded-md bg-slate-100 py-1.5 px-2.5 text-sm font-semibold text-slate-500 shadow-sm hover:bg-red-500  hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"> <XCircleIcon className="h-6 w-6 " /> Delete </button>
                         <input
                           className="hidden"
@@ -188,14 +242,20 @@ export default function FormSections() {
                         />
                         <input
                           className="hidden"
-                          name="url"
-                          value={imageData.url}
+                          name="sectionId"
+                          value={pathData.sectionId}
                           readOnly
                         />
                         <input
                           className="hidden"
-                          name="description"
-                          value={imageData.description}
+                          name="profileId"
+                          value={pathData.profileId}
+                          readOnly
+                        />
+                        <input
+                          className="hidden"
+                          name="intentId"
+                          value={pathData.intentId}
                           readOnly
                         />
                       </Form>
@@ -209,16 +269,6 @@ export default function FormSections() {
               }
             </ul>
           </div>
-
-
-
-
-
-
-
-
-
-
           <div className="py-3 flex justify-end">
             <Link
               to={".."}

@@ -47,7 +47,8 @@ export async function action({ params, request }: ActionArgs) {
 
   const SchemaObject = fields
     .reduce((arr, cur) =>
-      ({ ...arr, [cur.fieldId]: createZodElement(cur) }), {})
+      ({ ...arr, [cur.fieldId]: createZodElement(cur) }), 
+      {nextSection:z.string()})
 
   const SchemaCheck = z.object(SchemaObject);
 
@@ -65,7 +66,7 @@ export async function action({ params, request }: ActionArgs) {
     }
     await writeSectionResponse(intentDoc.profileId, intentDoc.intentId, params.sectionId ?? "no-sectionId", sectionResponseData);
 
-    return redirect(`/profile/${intentDoc.profileId}/intent/${intentDoc.intentId}`)
+    return redirect(`/profile/${intentDoc.profileId}/intent/${intentDoc.intentId}/${sectionCheck.data.nextSection}`)
   }
 }
 
@@ -107,18 +108,29 @@ export async function loader({ params, request }: LoaderArgs) {
     ? `/profile/${intentDoc.profileId}`
     : `/profile/${intentDoc.profileId}/intent/${intentDoc.intentId}/${previousSection}`
 
+    const nextIndex = sectionIndex + 1
+
+  const nextSection = nextIndex < openingDoc.sectionOrder.length
+      ? openingDoc.sectionOrder[nextIndex]
+      : "submit"
+  
+    
+  
+    const nextUrl = `/profile/${intentDoc.profileId}/intent/${intentDoc.intentId}/${nextSection}`
+  
+
   const fieldValues: { [key: string]: string } = sectionResponseData?.formValues ?? {}
 
   const intentId = params.intentId ?? "no-intent"
 
-  return json({ sectionData, fieldValues, backurl, intentId });
+  return json({ sectionData, fieldValues, backurl, intentId,nextSection });
 }
 
 
 
 export default function FormSections() {
 
-  const { sectionData, fieldValues, backurl, intentId } = useLoaderData<typeof loader>();
+  const { sectionData, fieldValues, backurl, intentId, nextSection } = useLoaderData<typeof loader>();
   const actionData = useActionData();
 
 
@@ -143,6 +155,11 @@ export default function FormSections() {
               }
               )
             }
+            <input
+              type="hidden"
+              name="nextSection"
+              value={nextSection}
+            />
           </SectionPanel>
           <div className="py-3 flex justify-end">
             <Link
