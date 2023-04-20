@@ -17,7 +17,7 @@ export async function loader({ params, request }: LoaderArgs) {
   const nextSection = intentDoc.sectionOrder.find((sectionId) => intentDoc.sectionStatus[sectionId] == false)
 
   if(!nextSection){
-    return redirect("submitted")
+    return redirect("submit")
   }
 
   return redirect(nextSection);

@@ -12,7 +12,7 @@ const converter = <T>() => ({
 });
 
 // helper to apply converter to multiple collections
-const dataPoint = <T extends FirebaseFirestore.DocumentData>(
+export const dataPoint = <T extends FirebaseFirestore.DocumentData>(
   collectionPath: string
 ) => getFirestore().collection(collectionPath).withConverter(converter<T>());
 
@@ -47,7 +47,7 @@ export type Field = {
 };
 
 export const versionUrl = "testCollection/version6";
-const dbBase = "database/version2";
+export const dbBase = "database/version2";
 
 export const surveyDb = {
   survey: () => dataPoint<SurveyDoc>(`${versionUrl}/survey`),
@@ -127,6 +127,10 @@ export const writeSectionImageResponse = async (
     url: string;
     description: string;
     imageId: string;
+  },
+  sectionDetails: {
+    name: string;
+    text:string;
   }
 ) => {
   const sectionResponseRef = surveyDb
@@ -135,6 +139,11 @@ export const writeSectionImageResponse = async (
 
   const writeDetails = {
     imageArray: FieldValue.arrayUnion(imageObj),
+    fields: [],
+    formValues: {},
+    name: sectionDetails.name,
+    text: sectionDetails.text,
+    type: "imageUpload",
   };
 
   const writeData = await sectionResponseRef.set(writeDetails, {
@@ -367,3 +376,23 @@ export const createNewIntent = async (profileId: string, openingId: string) => {
 
   return { ...writeNewIntent, intentId: newIntentRef.id };
 };
+
+export const setIntentStatus = async (
+  profileId: string,
+  intentId: string,
+  status: "in-progress" | "submitted"
+) => {
+  const intentRef = surveyDb.intents(profileId).doc(intentId);
+  const intentSnap = await intentRef.get();
+  const intentData = intentSnap.data();
+  if (!intentData) {
+    return undefined;
+  };
+  
+  const newIntentData = {
+    intentStatus: status,
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  const writeIntent = await intentRef.set(newIntentData, { merge: true });
+  return writeIntent;
+}

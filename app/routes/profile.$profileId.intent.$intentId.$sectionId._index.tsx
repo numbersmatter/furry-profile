@@ -21,12 +21,20 @@ export async function action({ params, request }: ActionArgs) {
   }
   const sectionIndex = openingDoc.sectionOrder.findIndex(sectionId => params.sectionId == sectionId)
 
+  const nextIndex = sectionIndex + 1;
+
   if (sectionIndex < 0) {
     throw new Response("error valid section id", { status: 404 })
   }
 
   const sectionData = openingDoc.sections[sectionIndex];
 
+  const nextSection = nextIndex < openingDoc.sectionOrder.length
+    ? openingDoc.sectionOrder[nextIndex]
+    : "submit"
+
+
+  const nextUrl = `/profile/${intentDoc.profileId}/intent/${intentDoc.intentId}/${nextSection}`
   const fields = sectionData.fields;
 
   const createZodElement = (field: Field) => {
@@ -47,8 +55,8 @@ export async function action({ params, request }: ActionArgs) {
 
   const SchemaObject = fields
     .reduce((arr, cur) =>
-      ({ ...arr, [cur.fieldId]: createZodElement(cur) }), 
-      {nextSection:z.string()})
+      ({ ...arr, [cur.fieldId]: createZodElement(cur) }),
+      {})
 
   const SchemaCheck = z.object(SchemaObject);
 
@@ -61,12 +69,16 @@ export async function action({ params, request }: ActionArgs) {
     return errorObject
   } else {
     const sectionResponseData = {
+      name: sectionData.name,
+      text: sectionData.text,
+      type: sectionData.type,
       fields,
-      formValues
+      formValues,
+      imageArray: []
     }
     await writeSectionResponse(intentDoc.profileId, intentDoc.intentId, params.sectionId ?? "no-sectionId", sectionResponseData);
 
-    return redirect(`/profile/${intentDoc.profileId}/intent/${intentDoc.intentId}/${sectionCheck.data.nextSection}`)
+    return redirect(nextUrl)
   }
 }
 
@@ -81,13 +93,13 @@ export async function loader({ params, request }: LoaderArgs) {
   }
   const sectionIndex = openingDoc.sectionOrder.findIndex(sectionId => params.sectionId == sectionId)
 
-  
-  
+
+
   const sectionData = openingDoc.sections[sectionIndex];
   const isImageUpload = sectionData?.type === "imageUpload"
   console.log(sectionData)
 
-  if(isImageUpload){
+  if (isImageUpload) {
     return redirect("upload")
   }
 
@@ -108,22 +120,22 @@ export async function loader({ params, request }: LoaderArgs) {
     ? `/profile/${intentDoc.profileId}`
     : `/profile/${intentDoc.profileId}/intent/${intentDoc.intentId}/${previousSection}`
 
-    const nextIndex = sectionIndex + 1
+  const nextIndex = sectionIndex + 1
 
   const nextSection = nextIndex < openingDoc.sectionOrder.length
-      ? openingDoc.sectionOrder[nextIndex]
-      : "submit"
-  
-    
-  
-    const nextUrl = `/profile/${intentDoc.profileId}/intent/${intentDoc.intentId}/${nextSection}`
-  
+    ? openingDoc.sectionOrder[nextIndex]
+    : "submit"
+
+
+
+  const nextUrl = `/profile/${intentDoc.profileId}/intent/${intentDoc.intentId}/${nextSection}`
+
 
   const fieldValues: { [key: string]: string } = sectionResponseData?.formValues ?? {}
 
   const intentId = params.intentId ?? "no-intent"
 
-  return json({ sectionData, fieldValues, backurl, intentId,nextSection });
+  return json({ sectionData, fieldValues, backurl, intentId, nextSection });
 }
 
 
@@ -155,11 +167,7 @@ export default function FormSections() {
               }
               )
             }
-            <input
-              type="hidden"
-              name="nextSection"
-              value={nextSection}
-            />
+            
           </SectionPanel>
           <div className="py-3 flex justify-end">
             <Link

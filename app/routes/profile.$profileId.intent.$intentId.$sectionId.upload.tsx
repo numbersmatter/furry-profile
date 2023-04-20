@@ -8,6 +8,21 @@ import { getIntentDoc, getOpeningDoc, getSectionResponse, saveImageUpload, setSe
 
 export async function action({ params, request }: ActionArgs) {
   const intentId = params.intentId ?? "no-intent"
+  const intentDoc = await getIntentDoc(params.profileId, params.intentId)
+  if (!intentDoc) {
+    throw new Response("no intent document", { status: 404 })
+  }
+  const openingDoc = await getOpeningDoc(intentDoc.profileId, intentDoc.openingId)
+  if (!openingDoc) {
+    throw new Response("no open form document", { status: 404 })
+  }
+
+  const sectionData = openingDoc.sections.find(section => section.sectionId === params.sectionId);
+
+  if(!sectionData) {
+    throw new Response("no section data", { status: 404 })
+  }
+
   const uploadHandler: UploadHandler = unstable_composeUploadHandlers(
     async ({ name, data }) => {
       if (name !== "img") {
@@ -33,11 +48,17 @@ export async function action({ params, request }: ActionArgs) {
   // random id
   const imageId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 
+const sectionDetails = {
+  name: sectionData.name,
+  text: sectionData.text,
+}
+
   await writeSectionImageResponse(
     params.profileId ?? "no-profile",
     params.intentId ?? "no-intent",
     params.sectionId ?? "no-section",
-    { url: imgSrc, description: imgDesc, imageId }
+    { url: imgSrc, description: imgDesc, imageId },
+    sectionDetails
   )
   const imageUploadedText = `${imgDesc} uploaded`
   return json({ imageUploadedText });
@@ -100,7 +121,7 @@ export async function loader({ params, request }: LoaderArgs) {
 export default function ImageUploadSection() {
   const [filesPresent, setFilesPresent] = useState<boolean>(false);
   const [fileName, setFileName] = useState<string>("");
-  const { sectionData, sectionResponseData, imageArray, nextUrl, pathData } = useLoaderData<typeof loader>();
+  const { sectionData, sectionResponseData, backurl, imageArray, nextUrl, pathData } = useLoaderData<typeof loader>();
 
 
   const actionData = useActionData<typeof action>();
@@ -271,8 +292,7 @@ export default function ImageUploadSection() {
           </div>
           <div className="py-3 flex justify-end">
             <Link
-              to={".."}
-              type="button"
+              to={backurl}
               className="rounded-md border border-gray-300 bg-white py-2 px-4 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
             >
               Back

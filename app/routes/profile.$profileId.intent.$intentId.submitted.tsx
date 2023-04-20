@@ -15,30 +15,24 @@ export async function loader({params, request}:LoaderArgs) {
     headline: "Thanks for your input!",
     
   }
-  return json({data});
+  return json({ data });
 }
 
 
 
-export default function SubmittedPAge() {
-  const { data} = useLoaderData<typeof loader>();
+export default function SubmittedPage() {
+  const {  } = useLoaderData<typeof loader>();
 
 
   return (
     <main className="relative lg:min-h-full border-2 bg-slate-50 rounded-lg pt-0">
-    <div className="h-80  overflow-hidden mt-0 lg:absolute lg:w-1/2 lg:h-full lg:pr-4 xl:pr-12">
-      <img
-        src={data.confirmSubmitImage}
-        alt="confirmation"
-        className="h-full border-2 w-full bg-transparent object-center object-cover mt-0 "
-      />
-    </div>
+    
 
     <div>
       <div className="max-w-2xl mx-auto py-16 px-4 sm:px-6 sm:py-24 lg:max-w-7xl lg:px-8 lg:py-32 lg:grid lg:grid-cols-2 lg:gap-x-8 xl:gap-x-24">
         <div className="lg:col-start-2">
           <h1 className="text-sm font-medium text-indigo-600">
-            {data.headline}
+            Request Submitted
           </h1>
           
 
